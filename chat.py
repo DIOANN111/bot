@@ -1,3 +1,4 @@
+import os
 import logging
 import asyncio
 import concurrent.futures
@@ -14,24 +15,21 @@ from telegram.ext import (
 )
 from openai import OpenAI
 
-# 🔑 OpenRouter API ключ
-API_KEY = "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"
+# 🔑 Получение API ключей из переменных окружения
+API_KEY = os.getenv("OPENROUTER_API_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=API_KEY,
 )
 
-# ✅ Доступные модели
 available_models = [
-      #  "qwen/qwen3-4b:free",
-        "deepseek/deepseek-r1:free",
+    "deepseek/deepseek-r1:free",
 ]
 
-# 📌 Модель по умолчанию для каждого пользователя
-user_model_choice = {}  # user_id -> model_id
+user_model_choice = {}
 
-# 🔄 Запрос текста к модели
 def ask_ai(model, prompt):
     try:
         response = client.chat.completions.create(
@@ -43,7 +41,6 @@ def ask_ai(model, prompt):
     except Exception as e:
         return model, f"[Ошибка]: {e}"
 
-# 📩 Обработка текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = update.message.text
     user_id = update.message.from_user.id
@@ -64,13 +61,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='HTML'
     )
 
-# 📷 Обработка изображений
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     model = user_model_choice.get(user_id, available_models[0])
 
     if "vision" not in model:
-        await update.message.reply_text("❌ Выбранная модель не поддерживает изображение. Попробуйте выбрать мультимодальную (например, meta-llama/llama-3.2-11b-vision-instruct:free)")
+        await update.message.reply_text("❌ Выбранная модель не поддерживает изображение.")
         return
 
     photo = update.message.photo[-1]
@@ -107,7 +103,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"[Ошибка при обработке изображения]: {e}")
 
-# 🎛 Кнопки выбора модели
 async def choose_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(model, callback_data=f"model|{model}")]
@@ -116,7 +111,6 @@ async def choose_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите модель:", reply_markup=reply_markup)
 
-# 📍 Обработка выбора модели
 async def handle_model_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -131,7 +125,6 @@ async def handle_model_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML"
         )
 
-# 📌 Команда /start с кнопкой
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📍 Выбрать модель", callback_data="open_model_menu")]
@@ -139,12 +132,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        "Привет! Просто напишите сообщение, и я отправлю его выбранной ИИ-модели.\n\n"
-        "Нажмите кнопку ниже, чтобы выбрать модель.",
+        "Привет! Просто напишите сообщение, и я отправлю его выбранной ИИ-модели.",
         reply_markup=reply_markup
     )
 
-# 👉 Обработка кнопки "📍 Выбрать модель"
 async def open_model_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -156,10 +147,7 @@ async def open_model_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text("Выберите модель:", reply_markup=reply_markup)
 
-# 🚀 Запуск бота
 def main():
-    TELEGRAM_TOKEN = "7700257073:AAHseprAswsOfWXRaPhxluFmKXy-VqqdwJk"  # Замените на свой токен
-
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
